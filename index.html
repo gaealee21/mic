@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>스마트폰 마이크</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: #f3f4f6; /* Gray-100 */
+            touch-action: manipulation; /* Improves touch responsiveness on mobile */
+        }
+        
+        /* Custom range slider styling for better mobile feel */
+        input[type=range] {
+            -webkit-appearance: none;
+            width: 100%;
+            background: transparent;
+        }
+        input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            height: 24px;
+            width: 24px;
+            border-radius: 50%;
+            background: #3b82f6; /* Blue-500 */
+            cursor: pointer;
+            margin-top: -8px; /* You need to specify a margin in Chrome, but in Firefox and IE it is automatic */
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+        }
+        input[type=range]::-webkit-slider-runnable-track {
+            width: 100%;
+            height: 8px;
+            cursor: pointer;
+            background: #d1d5db; /* Gray-300 */
+            border-radius: 4px;
+        }
+        input[type=range]:focus {
+            outline: none;
+        }
+    </style>
+</head>
+<body class="flex items-center justify-center min-h-screen p-4">
+
+    <div class="bg-white rounded-2xl shadow-xl p-6 md:p-8 w-full max-w-sm text-center">
+        <!-- Icon -->
+        <div class="mb-4 flex justify-center">
+            <div id="mic-icon-container" class="bg-gray-100 p-4 rounded-full text-gray-400 transition-colors duration-300">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-12 w-12" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
+                </svg>
+            </div>
+        </div>
+
+        <h1 class="text-2xl font-bold text-gray-800 mb-2">스마트폰 마이크</h1>
+        <p class="text-sm text-gray-500 mb-6">블루투스 스피커를 연결하고 볼륨을 조절한 후 '마이크 켜기'를 누르세요.</p>
+
+        <!-- Status Indicator -->
+        <div id="status-text" class="text-sm font-semibold text-gray-500 mb-4 h-5">
+            상태: 대기 중
+        </div>
+
+        <!-- Controls -->
+        <div class="space-y-6 mb-6">
+            <!-- Start Button -->
+            <button id="btn-start" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-4 px-6 rounded-xl text-lg shadow-lg shadow-blue-500/30 transition-transform active:scale-95 flex items-center justify-center gap-2">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" viewBox="0 0 20 20" fill="currentColor">
+                  <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clip-rule="evenodd" />
+                </svg>
+                마이크 켜기
+            </button>
+
+            <!-- Stop Button -->
+            <button id="btn-stop" class="hidden w-full bg-red-500 hover:bg-red-600 text-white font-bold py-4 px-6 rounded-xl text-lg shadow-lg shadow-red-500/30 transition-transform active:scale-95 flex items-center justify-center gap-2">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" viewBox="0 0 20 20" fill="currentColor">
+                  <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8 7a1 1 0 00-1 1v4a1 1 0 001 1h4a1 1 0 001-1V8a1 1 0 00-1-1H8z" clip-rule="evenodd" />
+                </svg>
+                마이크 끄기
+            </button>
+        </div>
+
+        <!-- Volume Slider -->
+        <div class="bg-gray-50 rounded-xl p-4 border border-gray-100">
+            <div class="flex justify-between text-xs text-gray-500 font-semibold mb-2 uppercase tracking-wider">
+                <span>볼륨 조절</span>
+                <span id="volume-label">100%</span>
+            </div>
+            <div class="flex items-center gap-3">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-gray-400" viewBox="0 0 20 20" fill="currentColor">
+                  <path fill-rule="evenodd" d="M9.383 3.076A1 1 0 0110 4v12a1 1 0 01-1.707.707L4.586 13H2a1 1 0 01-1-1V8a1 1 0 011-1h2.586l3.707-3.707a1 1 0 011.09-.217zM12.293 7.293a1 1 0 011.414 0L15 8.586l1.293-1.293a1 1 0 111.414 1.414L16.414 10l1.293 1.293a1 1 0 01-1.414 1.414L15 11.414l-1.293 1.293a1 1 0 01-1.414-1.414L13.586 10l-1.293-1.293a1 1 0 010-1.414z" clip-rule="evenodd" />
+                </svg>
+                <input type="range" id="volume-slider" min="0" max="2" step="0.1" value="1" class="w-full">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-gray-400" viewBox="0 0 20 20" fill="currentColor">
+                  <path fill-rule="evenodd" d="M9.383 3.076A1 1 0 0110 4v12a1 1 0 01-1.707.707L4.586 13H2a1 1 0 01-1-1V8a1 1 0 011-1h2.586l3.707-3.707a1 1 0 011.09-.217zM14.657 2.929a1 1 0 011.414 0A9.972 9.972 0 0119 10a9.972 9.972 0 01-2.929 7.071 1 1 0 01-1.414-1.414A7.971 7.971 0 0017 10c0-2.21-.894-4.208-2.343-5.657a1 1 0 010-1.414zm-2.829 2.828a1 1 0 011.415 0A5.983 5.983 0 0115 10a5.984 5.984 0 01-1.757 4.243 1 1 0 01-1.415-1.415A3.984 3.984 0 0013 10a3.983 3.983 0 00-1.172-2.828 1 1 0 010-1.415z" clip-rule="evenodd" />
+                </svg>
+            </div>
+        </div>
+
+        <div class="mt-4 text-xs text-gray-400 text-left bg-blue-50 p-3 rounded-lg border border-blue-100">
+            <strong class="text-blue-600">팁:</strong> 삐- 소리(하울링)를 방지하려면 블루투스 스피커를 스마트폰에서 멀리 떨어뜨리거나 볼륨을 약간 낮추세요.
+        </div>
+    </div>
+
+    <script>
+        // Web Audio API and DOM Elements setup
+        let audioContext;
+        let mediaStreamSource;
+        let gainNode;
+        let microphoneStream;
+
+        const btnStart = document.getElementById('btn-start');
+        const btnStop = document.getElementById('btn-stop');
+        const volumeSlider = document.getElementById('volume-slider');
+        const volumeLabel = document.getElementById('volume-label');
+        const statusText = document.getElementById('status-text');
+        const micIconContainer = document.getElementById('mic-icon-container');
+
+        // Update Volume Label visually on drag
+        volumeSlider.addEventListener('input', (e) => {
+            const val = parseFloat(e.target.value);
+            volumeLabel.textContent = Math.round(val * 100) + '%';
+            
+            // If audio is running, adjust gain in real-time
+            if (gainNode) {
+                // Use a slight ramp to prevent clicking sounds when adjusting volume
+                gainNode.gain.setTargetAtTime(val, audioContext.currentTime, 0.05);
+            }
+        });
+
+        // Start Microphone Function
+        btnStart.addEventListener('click', async () => {
+            try {
+                // Update UI state to loading
+                statusText.textContent = "마이크 접근 권한 요청 중...";
+                statusText.className = "text-sm font-semibold text-blue-500 mb-4 h-5";
+                btnStart.disabled = true;
+                btnStart.classList.add('opacity-50', 'cursor-not-allowed');
+
+                // 1. Initialize AudioContext (must be done after user interaction)
+                // latencyHint: 'interactive' prioritizes low latency over battery/cpu
+                const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+                audioContext = new AudioContextClass({ latencyHint: 'interactive' });
+
+                // 2. Request Microphone Access
+                // Echo cancellation and noise suppression are crucial to prevent howling feedback
+                microphoneStream = await navigator.mediaDevices.getUserMedia({
+                    audio: {
+                        echoCancellation: true,
+                        noiseSuppression: true,
+                        autoGainControl: true
+                    },
+                    video: false
+                });
+
+                // 3. Set up Audio Routing Graph
+                // Create source from the mic stream
+                mediaStreamSource = audioContext.createMediaStreamSource(microphoneStream);
+                
+                // Create volume controller (GainNode)
+                gainNode = audioContext.createGain();
+                gainNode.gain.value = parseFloat(volumeSlider.value); // Set initial volume
+
+                // Connect source -> volume -> speakers
+                mediaStreamSource.connect(gainNode);
+                gainNode.connect(audioContext.destination);
+
+                // 4. Update UI to "Live" state
+                statusText.textContent = "🔴 상태: 마이크 켜짐";
+                statusText.className = "text-sm font-bold text-red-500 mb-4 h-5 animate-pulse";
+                micIconContainer.classList.remove('bg-gray-100', 'text-gray-400');
+                micIconContainer.classList.add('bg-red-100', 'text-red-500');
+                
+                btnStart.classList.add('hidden');
+                btnStart.classList.remove('flex');
+                
+                btnStop.classList.remove('hidden');
+                btnStop.classList.add('flex');
+
+                btnStart.disabled = false;
+                btnStart.classList.remove('opacity-50', 'cursor-not-allowed');
+
+            } catch (err) {
+                console.error("Error accessing microphone:", err);
+                // Handle Permission denied or device unsupported errors
+                let errorMessage = "상태: 오류 - 마이크 접근이 거부되었거나 사용할 수 없습니다.";
+                if(err.name === 'NotAllowedError') {
+                    errorMessage = "상태: 오류 - 마이크 권한을 허용해 주세요.";
+                }
+                
+                statusText.textContent = errorMessage;
+                statusText.className = "text-sm font-semibold text-red-500 mb-4 h-5";
+                
+                btnStart.disabled = false;
+                btnStart.classList.remove('opacity-50', 'cursor-not-allowed');
+                
+                // Show an alert equivalent (using standard web APIs)
+                alert("마이크를 시작할 수 없습니다: " + errorMessage);
+            }
+        });
+
+        // Stop Microphone Function
+        btnStop.addEventListener('click', () => {
+            // 1. Stop all audio tracks in the media stream
+            if (microphoneStream) {
+                microphoneStream.getTracks().forEach(track => track.stop());
+            }
+
+            // 2. Disconnect routing nodes
+            if (mediaStreamSource) mediaStreamSource.disconnect();
+            if (gainNode) gainNode.disconnect();
+
+            // 3. Close the audio context to free resources
+            if (audioContext && audioContext.state !== 'closed') {
+                audioContext.close();
+            }
+
+            // 4. Reset UI
+            statusText.textContent = "상태: 대기 중";
+            statusText.className = "text-sm font-semibold text-gray-500 mb-4 h-5";
+            micIconContainer.classList.remove('bg-red-100', 'text-red-500');
+            micIconContainer.classList.add('bg-gray-100', 'text-gray-400');
+            
+            btnStop.classList.add('hidden');
+            btnStop.classList.remove('flex');
+            
+            btnStart.classList.remove('hidden');
+            btnStart.classList.add('flex');
+        });
+    </script>
+</body>
+</html>
