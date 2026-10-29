@@ -15,54 +15,75 @@
             text-align: center; width: 85%; max-width: 350px;
         }
         h2 { margin-top: 0; color: #374151; font-size: 1.5rem; }
-        p.status { color: #6b7280; font-size: 0.9rem; margin-bottom: 20px; }
+        p.status { color: #6b7280; font-size: 0.9rem; margin-bottom: 20px; word-break: keep-all; }
         
         button {
             width: 100%; padding: 14px; font-size: 1.1rem; font-weight: bold;
             color: white; border: none; border-radius: 10px; cursor: pointer;
             transition: background-color 0.3s;
         }
-        .btn-start { background-color: #10b981; } /* 녹색 */
+        .btn-start { background-color: #10b981; }
         .btn-start:hover { background-color: #059669; }
-        .btn-stop { background-color: #ef4444; display: none; } /* 빨간색 */
+        .btn-stop { background-color: #ef4444; display: none; }
         .btn-stop:hover { background-color: #dc2626; }
 
         .slider-container { margin-top: 25px; text-align: left; }
-        .slider-container label { font-size: 0.9rem; color: #4b5563; font-weight: bold; }
-        input[type=range] { width: 100%; margin-top: 8px; accent-color: #10b981; }
+        .slider-container label { font-size: 0.9rem; color: #4b5563; font-weight: bold; display: block; margin-bottom: 8px;}
+        input[type=range] { width: 100%; accent-color: #10b981; }
     </style>
 </head>
 <body>
 
     <div class="container">
         <h2>🎙️ 블루투스 마이크</h2>
-        <p class="status" id="statusText">스피커 연결 후 아래 버튼을 누르세요.</p>
+        <p class="status" id="statusText">블루투스 스피커 연결 확인 후 버튼을 누르세요.</p>
 
         <button id="startBtn" class="btn-start">마이크 켜기</button>
         <button id="stopBtn" class="btn-stop">마이크 끄기</button>
         
         <div class="slider-container">
-            <label for="volume">스피커 볼륨 조절</label>
-            <input type="range" id="volume" min="0" max="1" step="0.05" value="1">
+            <label for="volume">스피커 볼륨 (현재: <span id="volValue">100</span>%)</label>
+            <input type="range" id="volume" min="0" max="2" step="0.1" value="1">
         </div>
     </div>
-
-    <!-- 핵심 해결책: Web Audio API 대신 유튜브처럼 동작하는 <audio> 태그 사용 -->
-    <audio id="audioOutput" autoplay playsinline></audio>
 
     <script>
         const startBtn = document.getElementById('startBtn');
         const stopBtn = document.getElementById('stopBtn');
         const volumeSlider = document.getElementById('volume');
-        const audioOutput = document.getElementById('audioOutput');
+        const volValueText = document.getElementById('volValue');
         const statusText = document.getElementById('statusText');
         
+        let audioContext = null;
         let mediaStream = null;
+        let micSource = null;
+        let gainNode = null;
+
+        // 블루투스 오디오 채널을 강제로 여는 함수 (Wake-up)
+        function forceBluetoothAudioRouting() {
+            if (!audioContext) return;
+            const oscillator = audioContext.createOscillator();
+            const silentGain = audioContext.createGain();
+            silentGain.gain.value = 0.01; // 거의 들리지 않는 소리
+            oscillator.connect(silentGain);
+            silentGain.connect(audioContext.destination);
+            oscillator.start();
+            oscillator.stop(audioContext.currentTime + 0.1);
+        }
 
         startBtn.addEventListener('click', async () => {
             try {
-                // 스마트폰이 통화 모드로 전환되는 것을 막기 위해 
-                // 에코 캔슬링과 노이즈 억제를 끕니다. (미디어 모드 유지)
+                // 1. 지연 시간을 최소화(interactive)하는 오디오 컨텍스트 생성
+                const AudioContext = window.AudioContext || window.webkitAudioContext;
+                audioContext = new AudioContext({ latencyHint: 'interactive' });
+                
+                // 브라우저 정책상 사용자 클릭 시점에 컨텍스트를 활성화해야 함
+                await audioContext.resume();
+
+                // 2. 블루투스 채널 강제 활성화 (Wake-up)
+                forceBluetoothAudioRouting();
+
+                // 3. 통화 모드 진입 방지를 위해 에코/노이즈 캔슬링 끔
                 const constraints = { 
                     audio: { 
                         echoCancellation: false,
@@ -70,40 +91,52 @@
                         autoGainControl: false
                     } 
                 };
-                
                 mediaStream = await navigator.mediaDevices.getUserMedia(constraints);
                 
-                // 마이크 소리를 <audio> 태그에 직접 연결 (유튜브 영상 소리처럼 인식시킴)
-                audioOutput.srcObject = mediaStream;
+                // 4. 마이크 소리를 Web Audio API로 가져옴
+                micSource = audioContext.createMediaStreamSource(mediaStream);
                 
-                // 모바일 브라우저 정책 우회를 위해 강제 재생 명령
-                await audioOutput.play();
+                // 5. 볼륨 조절 노드 생성
+                gainNode = audioContext.createGain();
+                gainNode.gain.value = volumeSlider.value;
+                
+                // 6. 마이크 -> 볼륨 조절 -> 스피커(최종 출력) 연결
+                micSource.connect(gainNode);
+                gainNode.connect(audioContext.destination);
 
-                statusText.textContent = "🟢 마이크 작동 중 (소리 출력 중)";
+                statusText.innerHTML = "🟢 마이크 작동 중<br><small>블루투스 스피커로 소리가 나갑니다.</small>";
                 statusText.style.color = "#10b981";
                 startBtn.style.display = 'none';
                 stopBtn.style.display = 'block';
 
             } catch (err) {
-                statusText.textContent = '❌ 마이크 권한을 허용해주세요.';
+                statusText.textContent = '❌ 마이크 접근 실패';
                 statusText.style.color = '#ef4444';
-                alert('마이크 접근 오류: ' + err.message);
+                alert('마이크 권한을 허용했는지 확인해주세요. 에러: ' + err.message);
             }
         });
 
         stopBtn.addEventListener('click', () => {
             if (mediaStream) {
                 mediaStream.getTracks().forEach(track => track.stop());
-                audioOutput.srcObject = null;
             }
-            statusText.textContent = "스피커 연결 후 아래 버튼을 누르세요.";
+            if (audioContext) {
+                audioContext.close();
+                audioContext = null;
+            }
+            statusText.textContent = "블루투스 스피커 연결 확인 후 버튼을 누르세요.";
             statusText.style.color = "#6b7280";
             startBtn.style.display = 'block';
             stopBtn.style.display = 'none';
         });
 
         volumeSlider.addEventListener('input', (e) => {
-            audioOutput.volume = e.target.value;
+            const val = e.target.value;
+            volValueText.textContent = Math.round(val * 100);
+            if (gainNode && audioContext) {
+                // 볼륨 조절 시 틱(Tick) 소리 방지를 위해 부드럽게 볼륨 변경
+                gainNode.gain.setTargetAtTime(val, audioContext.currentTime, 0.01);
+            }
         });
     </script>
 </body>
