@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>블루투스 실시간 마이크 (초저지연)</title>
+    <title>블루투스 마이크 (하울링 억제형)</title>
     <style>
         body {
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
@@ -31,20 +31,13 @@
         .slider-container label { font-size: 0.9rem; color: #4b5563; font-weight: bold; display: block; margin-bottom: 8px;}
         input[type=range] { width: 100%; accent-color: #10b981; margin-bottom: 15px; }
 
-        .toggle-container {
-            background: #f8fafc; padding: 10px; border-radius: 8px; border: 1px solid #e2e8f0;
-            text-align: left; margin-top: 10px;
-        }
-        .toggle-container label { font-size: 0.85rem; color: #4b5563; display: flex; align-items: center; gap: 8px; cursor: pointer; }
-        .toggle-container input[type=checkbox] { width: 18px; height: 18px; accent-color: #10b981; }
-        .notice { font-size: 0.75rem; color: #ef4444; margin-top: 5px; margin-bottom: 0; }
-        .badge { display: inline-block; background-color: #e0e7ff; color: #4f46e5; font-size: 0.7rem; padding: 2px 6px; border-radius: 4px; margin-bottom: 10px; font-weight: bold;}
+        .badge { display: inline-block; background-color: #fee2e2; color: #b91c1c; font-size: 0.75rem; padding: 4px 8px; border-radius: 4px; margin-bottom: 10px; font-weight: bold;}
     </style>
 </head>
 <body>
 
     <div class="container">
-        <span class="badge">음성 전용 초저지연 모드 (16kHz Mono)</span>
+        <span class="badge">8kHz 통화음질 + 하울링 방지 필터 가동</span>
         <h2>🎙️ 블루투스 마이크</h2>
         <p class="status" id="statusText">블루투스 스피커 연결 후 버튼을 누르세요.</p>
 
@@ -55,14 +48,6 @@
             <label for="volume">스피커 볼륨 (현재: <span id="volValue">100</span>%)</label>
             <input type="range" id="volume" min="0" max="2" step="0.1" value="1">
         </div>
-
-        <div class="toggle-container">
-            <label>
-                <input type="checkbox" id="echoToggle"> 
-                <strong>에코 및 하울링 제거 켜기</strong>
-            </label>
-            <p class="notice">* 켰을 때 다시 폰 스피커로 소리가 나면 끄고 사용하세요.</p>
-        </div>
     </div>
 
     <script>
@@ -71,12 +56,13 @@
         const volumeSlider = document.getElementById('volume');
         const volValueText = document.getElementById('volValue');
         const statusText = document.getElementById('statusText');
-        const echoToggle = document.getElementById('echoToggle');
         
         let audioContext = null;
         let mediaStream = null;
         let micSource = null;
         let gainNode = null;
+        let highpassFilter = null;
+        let compressor = null;
 
         function forceBluetoothAudioRouting() {
             if (!audioContext) return;
@@ -93,41 +79,57 @@
             try {
                 const AudioContext = window.AudioContext || window.webkitAudioContext;
                 
-                // 1. 오디오 컨텍스트 처리량 최소화 (16000Hz 고정)
+                // 1. 최소 샘플 레이트 8,000Hz (전화기 수준) 적용
                 audioContext = new AudioContext({ 
                     latencyHint: 'interactive', 
-                    sampleRate: 16000 
+                    sampleRate: 8000 
                 });
                 await audioContext.resume();
                 forceBluetoothAudioRouting();
 
-                const useEchoCancel = echoToggle.checked;
-                
-                // 2. 마이크에서부터 데이터량을 최소화하여 가져옴 (모노 채널, 16000Hz)
+                // 모바일 환경의 강제 통화모드 전환을 막기 위해 소프트웨어 에코 캔슬링은 끕니다.
                 const constraints = { 
                     audio: { 
-                        echoCancellation: useEchoCancel,
-                        noiseSuppression: useEchoCancel,
-                        autoGainControl: useEchoCancel,
-                        sampleRate: 16000, 
-                        channelCount: 1 // 스테레오 끄기 (모노)
+                        echoCancellation: false,
+                        noiseSuppression: false,
+                        autoGainControl: false,
+                        sampleRate: 8000, 
+                        channelCount: 1 
                     } 
                 };
                 
                 mediaStream = await navigator.mediaDevices.getUserMedia(constraints);
                 micSource = audioContext.createMediaStreamSource(mediaStream);
                 
+                // 2. 하이패스 필터 (High-pass Filter) 
+                // 하울링(웅웅거림)의 주범인 300Hz 이하의 불필요한 저음을 깎아냅니다.
+                highpassFilter = audioContext.createBiquadFilter();
+                highpassFilter.type = 'highpass';
+                highpassFilter.frequency.value = 300; 
+
+                // 3. 컴프레서 (Dynamics Compressor)
+                // 에코가 증폭되어 귀를 찢는 굉음(피드백)으로 변하는 것을 억눌러줍니다.
+                compressor = audioContext.createDynamicsCompressor();
+                compressor.threshold.value = -24; // 일정 데시벨 이상 넘어오면
+                compressor.knee.value = 30;
+                compressor.ratio.value = 12;      // 소리를 12분의 1로 강제 압축
+                compressor.attack.value = 0.003;
+                compressor.release.value = 0.25;
+
+                // 4. 볼륨 조절 노드
                 gainNode = audioContext.createGain();
                 gainNode.gain.value = volumeSlider.value;
                 
-                micSource.connect(gainNode);
+                // 5. 오디오 파이프라인 연결: 마이크 -> 필터 -> 컴프레서 -> 볼륨 -> 스피커
+                micSource.connect(highpassFilter);
+                highpassFilter.connect(compressor);
+                compressor.connect(gainNode);
                 gainNode.connect(audioContext.destination);
 
-                statusText.innerHTML = "🟢 마이크 작동 중<br><small>블루투스 스피커로 소리가 나갑니다.</small>";
+                statusText.innerHTML = "🟢 마이크 작동 중<br><small>하울링 억제 필터가 가동 중입니다.</small>";
                 statusText.style.color = "#10b981";
                 startBtn.style.display = 'none';
                 stopBtn.style.display = 'block';
-                echoToggle.disabled = true;
 
             } catch (err) {
                 statusText.textContent = '❌ 마이크 접근 실패';
@@ -147,7 +149,6 @@
             statusText.style.color = "#6b7280";
             startBtn.style.display = 'block';
             stopBtn.style.display = 'none';
-            echoToggle.disabled = false;
         });
 
         volumeSlider.addEventListener('input', (e) => {
