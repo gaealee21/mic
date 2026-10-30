@@ -3,48 +3,78 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>블루투스 마이크 (최적화 및 필터 제어)</title>
+    <title>실시간 스마트 마이크 (최적화)</title>
     <style>
+        :root {
+            --primary: #10b981; --primary-hover: #059669;
+            --danger: #ef4444; --danger-hover: #dc2626;
+            --text-main: #374151; --text-sub: #6b7280;
+            --bg-color: #f3f4f6; --box-bg: #ffffff;
+        }
         body {
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
             display: flex; flex-direction: column; align-items: center; justify-content: center; 
-            height: 100vh; background-color: #f3f4f6; margin: 0;
+            min-height: 100vh; background-color: var(--bg-color); margin: 0; padding: 20px;
+            box-sizing: border-box;
         }
         .container {
-            background: white; padding: 2rem; border-radius: 16px; box-shadow: 0 4px 12px rgba(0,0,0,0.1);
-            text-align: center; width: 85%; max-width: 350px;
+            background: var(--box-bg); padding: 2rem; border-radius: 16px; 
+            box-shadow: 0 4px 12px rgba(0,0,0,0.08); text-align: center; width: 100%; max-width: 360px;
         }
-        h2 { margin-top: 0; color: #374151; font-size: 1.5rem; }
-        p.status { color: #6b7280; font-size: 0.9rem; margin-bottom: 20px; word-break: keep-all; }
+        h2 { margin-top: 0; color: var(--text-main); font-size: 1.5rem; }
+        .status { color: var(--text-sub); font-size: 0.9rem; margin-bottom: 20px; word-break: keep-all; font-weight: 500; }
         
+        .mode-selector {
+            display: flex; gap: 8px; margin-bottom: 20px; background: #f1f5f9; padding: 6px; border-radius: 12px;
+        }
+        .mode-option { flex: 1; }
+        .mode-option input[type="radio"] { display: none; }
+        .mode-option label {
+            display: block; padding: 10px 0; font-size: 0.85rem; font-weight: bold; color: #64748b;
+            border-radius: 8px; cursor: pointer; transition: 0.2s;
+        }
+        .mode-option input[type="radio"]:checked + label {
+            background: white; color: #0284c7; box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        }
+
         button {
             width: 100%; padding: 14px; font-size: 1.1rem; font-weight: bold;
-            color: white; border: none; border-radius: 10px; cursor: pointer;
-            transition: background-color 0.3s;
+            color: white; border: none; border-radius: 10px; cursor: pointer; transition: 0.2s;
         }
-        .btn-start { background-color: #10b981; }
-        .btn-start:hover { background-color: #059669; }
-        .btn-stop { background-color: #ef4444; display: none; }
-        .btn-stop:hover { background-color: #dc2626; }
+        .btn-start { background-color: var(--primary); }
+        .btn-start:hover { background-color: var(--primary-hover); }
+        .btn-stop { background-color: var(--danger); display: none; }
+        .btn-stop:hover { background-color: var(--danger-hover); }
 
         .slider-container { margin-top: 25px; text-align: left; }
-        .slider-container label { font-size: 0.9rem; color: #4b5563; font-weight: bold; display: block; margin-bottom: 8px;}
-        input[type=range] { width: 100%; accent-color: #10b981; margin-bottom: 15px; }
+        .slider-container label { font-size: 0.9rem; color: var(--text-main); font-weight: bold; display: block; margin-bottom: 8px;}
+        input[type=range] { width: 100%; accent-color: var(--primary); margin-bottom: 15px; }
 
         .toggle-container {
-            background: #f8fafc; padding: 12px; border-radius: 8px; border: 1px solid #e2e8f0;
-            text-align: left; margin-top: 10px;
+            background: #f8fafc; padding: 12px; border-radius: 8px; border: 1px solid #e2e8f0; text-align: left; margin-top: 10px;
         }
-        .toggle-container label { font-size: 0.9rem; color: #1f2937; display: flex; align-items: center; gap: 8px; cursor: pointer; }
-        .toggle-container input[type=checkbox] { width: 20px; height: 20px; accent-color: #10b981; }
-        .notice { font-size: 0.75rem; color: #6b7280; margin-top: 6px; margin-bottom: 0; line-height: 1.4; }
+        .toggle-container label { font-size: 0.85rem; color: var(--text-main); display: flex; align-items: center; gap: 8px; cursor: pointer; font-weight: bold;}
+        .toggle-container input[type=checkbox] { width: 18px; height: 18px; accent-color: var(--primary); }
+        .notice { font-size: 0.75rem; color: var(--text-sub); margin-top: 6px; margin-bottom: 0; line-height: 1.4; }
     </style>
 </head>
 <body>
 
     <div class="container">
-        <h2>🎙️ 블루투스 마이크</h2>
-        <p class="status" id="statusText">블루투스 스피커 연결 후 버튼을 누르세요.</p>
+        <h2>🎙️ 실시간 마이크</h2>
+        
+        <div class="mode-selector">
+            <div class="mode-option">
+                <input type="radio" id="modeWire" name="connMode" value="wire" checked>
+                <label for="modeWire">🔌 유선 (AUX)</label>
+            </div>
+            <div class="mode-option">
+                <input type="radio" id="modeBT" name="connMode" value="bluetooth">
+                <label for="modeBT">📶 무선 (블루투스)</label>
+            </div>
+        </div>
+
+        <p class="status" id="statusText">연결 방식을 선택 후 마이크를 켜세요.</p>
 
         <button id="startBtn" class="btn-start">마이크 켜기</button>
         <button id="stopBtn" class="btn-stop">마이크 끄기</button>
@@ -57,137 +87,137 @@
         <div class="toggle-container">
             <label>
                 <input type="checkbox" id="filterToggle" checked> 
-                <strong>하울링 억제 필터 가동</strong>
+                정밀 하울링 제어 (선명한 음성)
             </label>
-            <p class="notice">실시간 On/Off 가능. 하울링(삐- 소리)이 발생할 때 켜주세요. 켜면 음질이 다소 날카로워집니다.</p>
+            <p class="notice">목소리의 명료도를 유지하면서 특정 하울링 주파수만 제거합니다.</p>
         </div>
     </div>
 
     <script>
-        const startBtn = document.getElementById('startBtn');
-        const stopBtn = document.getElementById('stopBtn');
-        const volumeSlider = document.getElementById('volume');
-        const volValueText = document.getElementById('volValue');
-        const statusText = document.getElementById('statusText');
-        const filterToggle = document.getElementById('filterToggle');
+        // DOM 요소 캐싱 (최적화)
+        const ui = {
+            start: document.getElementById('startBtn'),
+            stop: document.getElementById('stopBtn'),
+            vol: document.getElementById('volume'),
+            volText: document.getElementById('volValue'),
+            status: document.getElementById('statusText'),
+            filter: document.getElementById('filterToggle'),
+            radios: document.querySelectorAll('input[name="connMode"]')
+        };
         
-        let audioContext = null;
-        let mediaStream = null;
-        let micSource = null;
-        let gainNode = null;
-        let highpassFilter = null;
-        let compressor = null;
+        // 오디오 상태 관리 객체 (메모리 관리 최적화)
+        const audio = {
+            ctx: null, stream: null, source: null,
+            hp: null, notch: null, comp: null, gain: null
+        };
 
-        // 블루투스 오디오 채널 강제 활성화
-        function forceBluetoothAudioRouting() {
-            if (!audioContext) return;
-            const oscillator = audioContext.createOscillator();
-            const silentGain = audioContext.createGain();
-            silentGain.gain.value = 0.01;
-            oscillator.connect(silentGain);
-            silentGain.connect(audioContext.destination);
-            oscillator.start();
-            oscillator.stop(audioContext.currentTime + 0.1);
-        }
-
-        // 필터 On/Off 에 따른 오디오 경로 실시간 변경 함수
-        function updateAudioRouting() {
-            if (!micSource || !gainNode) return;
+        // UI 상태 업데이트 함수
+        function setUIState(isRecording, modeLabel = '') {
+            ui.start.style.display = isRecording ? 'none' : 'block';
+            ui.stop.style.display = isRecording ? 'block' : 'none';
+            ui.radios.forEach(r => r.disabled = isRecording);
             
-            // 기존 연결을 모두 끊음
-            micSource.disconnect();
-            if (highpassFilter) highpassFilter.disconnect();
-            if (compressor) compressor.disconnect();
-
-            if (filterToggle.checked) {
-                // 필터 켜짐: 마이크 -> 하이패스 -> 컴프레서 -> 볼륨 -> 출력
-                micSource.connect(highpassFilter);
-                highpassFilter.connect(compressor);
-                compressor.connect(gainNode);
+            if (isRecording) {
+                ui.status.innerHTML = `🟢 ${modeLabel} 가동 중<br><small>출력 장치로 소리가 나갑니다.</small>`;
+                ui.status.style.color = "var(--primary)";
             } else {
-                // 필터 꺼짐: 마이크 -> 볼륨 -> 출력 (원음 그대로)
-                micSource.connect(gainNode);
+                ui.status.textContent = "연결 방식을 선택 후 마이크를 켜세요.";
+                ui.status.style.color = "var(--text-sub)";
             }
         }
 
-        // 스위치를 누를 때마다 즉시 오디오 경로 업데이트 적용
-        filterToggle.addEventListener('change', () => {
-            if (audioContext && audioContext.state === 'running') {
-                updateAudioRouting();
+        // 블루투스 채널 강제 활성화 (Wake-up 펄스)
+        function forceBluetoothWakeup() {
+            if (!audio.ctx) return;
+            const osc = audio.ctx.createOscillator();
+            const silent = audio.ctx.createGain();
+            silent.gain.value = 0.01;
+            osc.connect(silent).connect(audio.ctx.destination);
+            osc.start();
+            osc.stop(audio.ctx.currentTime + 0.1);
+        }
+
+        // 오디오 라우팅 업데이트 (노드 연결 재구성)
+        function updateRouting() {
+            if (!audio.source || !audio.gain) return;
+            
+            audio.source.disconnect();
+            if (audio.hp) audio.hp.disconnect();
+            if (audio.notch) audio.notch.disconnect();
+            if (audio.comp) audio.comp.disconnect();
+
+            if (ui.filter.checked) {
+                audio.source.connect(audio.hp).connect(audio.notch).connect(audio.comp).connect(audio.gain);
+            } else {
+                audio.source.connect(audio.gain);
             }
+        }
+
+        ui.filter.addEventListener('change', () => {
+            if (audio.ctx && audio.ctx.state === 'running') updateRouting();
         });
 
-        startBtn.addEventListener('click', async () => {
+        ui.start.addEventListener('click', async () => {
+            const selectedMode = document.querySelector('input[name="connMode"]:checked');
+
             try {
                 const AudioContext = window.AudioContext || window.webkitAudioContext;
+                audio.ctx = new AudioContext({ latencyHint: 'interactive' });
+                await audio.ctx.resume();
+
+                if (selectedMode.value === 'bluetooth') forceBluetoothWakeup();
+
+                // OS 기본 에코 캔슬링 끄기 (통화 모드 전환 방지 및 원음 유지)
+                audio.stream = await navigator.mediaDevices.getUserMedia({
+                    audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false }
+                });
+                audio.source = audio.ctx.createMediaStreamSource(audio.stream);
                 
-                // 샘플 레이트 강제 지정을 없애 기기의 Native 상태를 유지 (리샘플링 지연 방지)
-                audioContext = new AudioContext({ latencyHint: 'interactive' });
-                await audioContext.resume();
-                forceBluetoothAudioRouting();
+                // 1. 하이패스 (120Hz 컷 - 웅웅거림 제거)
+                audio.hp = audio.ctx.createBiquadFilter();
+                audio.hp.type = 'highpass'; audio.hp.frequency.value = 120; 
 
-                // 소프트웨어 에코 캔슬링은 끄기 (통화 모드 방지용)
-                const constraints = { 
-                    audio: { 
-                        echoCancellation: false,
-                        noiseSuppression: false,
-                        autoGainControl: false
-                    } 
-                };
-                
-                mediaStream = await navigator.mediaDevices.getUserMedia(constraints);
-                micSource = audioContext.createMediaStreamSource(mediaStream);
-                
-                // 필터 노드 생성 (하울링 억제용)
-                highpassFilter = audioContext.createBiquadFilter();
-                highpassFilter.type = 'highpass';
-                highpassFilter.frequency.value = 300; 
+                // 2. 노치 (2.5kHz 컷 - 고음 삐 소리 제거)
+                audio.notch = audio.ctx.createBiquadFilter();
+                audio.notch.type = 'notch'; audio.notch.frequency.value = 2500; audio.notch.Q.value = 3.0;
 
-                compressor = audioContext.createDynamicsCompressor();
-                compressor.threshold.value = -24;
-                compressor.knee.value = 30;
-                compressor.ratio.value = 12;
-                compressor.attack.value = 0.003;
-                compressor.release.value = 0.25;
+                // 3. 컴프레서 (명료도 유지 압축)
+                audio.comp = audio.ctx.createDynamicsCompressor();
+                audio.comp.threshold.value = -16; audio.comp.knee.value = 24; 
+                audio.comp.ratio.value = 4; audio.comp.attack.value = 0.005; audio.comp.release.value = 0.15;
 
-                // 볼륨 노드 생성
-                gainNode = audioContext.createGain();
-                gainNode.gain.value = volumeSlider.value;
-                gainNode.connect(audioContext.destination);
+                // 4. 게인 (볼륨) - 팝 노이즈 방지를 위해 서서히 볼륨 올림
+                audio.gain = audio.ctx.createGain();
+                audio.gain.gain.setValueAtTime(0, audio.ctx.currentTime);
+                audio.gain.gain.linearRampToValueAtTime(ui.vol.value, audio.ctx.currentTime + 0.1);
+                audio.gain.connect(audio.ctx.destination);
 
-                // 현재 스위치 상태에 맞춰 오디오 회로 연결
-                updateAudioRouting();
-
-                statusText.innerHTML = "🟢 마이크 작동 중<br><small>블루투스 스피커로 소리가 나갑니다.</small>";
-                statusText.style.color = "#10b981";
-                startBtn.style.display = 'none';
-                stopBtn.style.display = 'block';
+                updateRouting();
+                setUIState(true, selectedMode.nextElementSibling.textContent);
 
             } catch (err) {
-                statusText.textContent = '❌ 마이크 접근 실패';
-                statusText.style.color = '#ef4444';
+                ui.status.textContent = '❌ 마이크 권한을 허용해주세요.';
+                ui.status.style.color = 'var(--danger)';
+                alert('마이크 접근 실패: ' + err.message);
             }
         });
 
-        stopBtn.addEventListener('click', () => {
-            if (mediaStream) {
-                mediaStream.getTracks().forEach(track => track.stop());
+        ui.stop.addEventListener('click', () => {
+            // 메모리 누수 방지 및 리소스 완전 해제
+            if (audio.stream) audio.stream.getTracks().forEach(t => t.stop());
+            if (audio.ctx) {
+                audio.ctx.close();
+                Object.keys(audio).forEach(k => audio[k] = null);
             }
-            if (audioContext) {
-                audioContext.close();
-                audioContext = null;
-            }
-            statusText.textContent = "블루투스 스피커 연결 후 버튼을 누르세요.";
-            statusText.style.color = "#6b7280";
-            startBtn.style.display = 'block';
-            stopBtn.style.display = 'none';
+            setUIState(false);
         });
 
-        volumeSlider.addEventListener('input', (e) => {
+        ui.vol.addEventListener('input', (e) => {
             const val = e.target.value;
-            volValueText.textContent = Math.round(val * 100);
-            if (gainNode && audioContext) {
-                gainNode.gain.setTargetAtTime(val, audioContext.currentTime, 0.01);
+            ui.volText.textContent = Math.round(val * 100);
+            if (audio.gain && audio.ctx) {
+                // 부드러운 볼륨 전환 (틱 소리 방지)
+                audio.gain.gain.setTargetAtTime(val, audio.ctx.currentTime, 0.05);
             }
         });
     </script>
